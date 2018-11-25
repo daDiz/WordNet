@@ -2,7 +2,7 @@
 
 virtualenv venv
 
-.venv/bin/activate
+. venv/bin/activate
 
 pip install -r requirements.txt
 
@@ -58,4 +58,6 @@ export NEO4J\_PASSWORD="my-password"
 export FLASK\_ENV=development
 
 python wn.py
+
+open a browser, and type http://localhost:8080/
 
