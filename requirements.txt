@@ -1,0 +1,11 @@
+Click==7.0
+Flask==1.0.2
+itsdangerous==1.1.0
+Jinja2==2.10
+MarkupSafe==1.1.0
+neo4j-driver==1.7.1
+neobolt==1.7.3
+neotime==1.7.2
+pytz==2018.7
+six==1.11.0
+Werkzeug==0.14.1
