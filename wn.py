@@ -50,7 +50,11 @@ def get_search():
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                             "WHERE (w1.value =~ {v1} AND w2.value =~ {v2}) OR (w1.value =~ {v2} AND w2.value =~ {v1}) "
                             "RETURN DISTINCT r.name", {"v1": "(?i)" + w1, "v2": "(?i)" + w2})
-            return Response(dumps([record['r.name'] for record in results]), mimetype="application/json")
+            ser = [record['r.name'] for record in results]
+            if not ser:
+                return Response(dumps([]), mimetype="application/json")
+
+            return Response(dumps(ser), mimetype="application/json")
 
         elif mode == "max single":
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
@@ -72,6 +76,62 @@ def get_search():
                 return Response(dumps([record['r.name'] for record in ser1]), mimetype="application/json")
             else:
                 return Response(dumps([record['r.name'] for record in ser2]), mimetype="application/json")
+        elif mode == "new jaccard":
+            result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
+                             "WHERE w.value =~ {v} "
+                             "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w1})
+
+            result2 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
+                             "WHERE w.value =~ {v} "
+                             "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w2})
+
+            x = {}
+            y = {}
+            for record in result1:
+                x[record["r.name"]] = record["ind"]
+
+            for record in result2:
+                y[record["r.name"]] = record["ind"]
+
+            xk = x.keys()
+            yk = y.keys()
+            zk = list(set(xk) | set(yk))
+
+            max_name = None
+            max_score = -1.0
+            for k in zk:
+                x_ = x.get(k)
+                y_ = y.get(k)
+                if x_ == None:
+                    x_ = []
+                if y_ == None:
+                    y_ = []
+                zu = float(len(list(set(x_) | set(y_))))
+                zi = float(len(list(set(x_) & set(y_))))
+                score = zi / zu
+                if score > max_score:
+                    max_name = k
+                    max_score = score
+
+            return Response(dumps([max_name]), mimetype="application/json")
+
+        elif mode == "new friends":
+            results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(left1:Index)-[r1:POINT_TO]-(left2:Index)-[r2:POINT_TO]-(right2:Index)-[r3:POINT_TO]-(right1:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
+                             "WHERE w1.value=~{v1} AND w2.value=~{v2} "
+                             "WITH [left2.value, right2.value] AS pair, r2.name AS name "
+                             "RETURN name, COUNT(pair) AS frequency ORDER BY frequency DESC", {"v1": "(?i)" + w1, "v2": "(?i)" + w2})
+
+            ser = []
+            for record in results:
+                ser.append({"name": record["name"], "frequency": record["frequency"]})
+
+            if not ser:
+                return Response(dumps([]), mimetype="application/json")
+
+
+            return Response(dumps([ser[0]["name"]]), mimetype="application/json")
+
+
         elif mode == "jaccard index":
             #Response(dumps(["Quering now ..."]), mimetype="application/json")
             score = [];
