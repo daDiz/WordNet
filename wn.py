@@ -149,12 +149,22 @@ def get_search():
                              "WHERE w.value =~ {v} "
                              "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w2})
 
+            ser1 = []
+            ser2 = []
+            for record in result1:
+                ser1.append({"r.name": record["r.name"],
+                             "ind": record["ind"]})
+            for record in result2:
+                ser2.append({"r.name": record["r.name"],
+                             "ind": record["ind"]})
+
+
             x = {}
             y = {}
-            for record in result1:
+            for record in ser1:
                 x[record["r.name"]] = record["ind"]
 
-            for record in result2:
+            for record in ser2:
                 y[record["r.name"]] = record["ind"]
 
             xk = x.keys()
