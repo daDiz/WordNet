@@ -76,6 +76,70 @@ def get_search():
                 return Response(dumps([record['r.name'] for record in ser1]), mimetype="application/json")
             else:
                 return Response(dumps([record['r.name'] for record in ser2]), mimetype="application/json")
+        elif mode == "preferential attachment":
+            result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
+                              "WHERE w.value =~ {v} "
+                              "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC ", {"v": "(?i)" + w1})
+            result2 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
+                              "WHERE w.value =~ {v} "
+                              "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC", {"v": "(?i)" + w2})
+
+            ser1 = []
+            ser2 = []
+            for record in result1:
+                ser1.append({"r.name": record["r.name"],
+                             "frequency": record["frequency"]})
+            for record in result2:
+                ser2.append({"r.name": record["r.name"],
+                             "frequency": record["frequency"]})
+
+            same = {}
+            #diff = {}
+            for record1 in ser1:
+                for record2 in ser2:
+                    if record1["r.name"] == record2["r.name"]:
+                        same[record1["r.name"]] = record1["frequency"]*record2["frequency"]
+
+            if len(same) > 0: # if in and out have shared relations, find the one with a maximum product
+                maxi_same = 0
+                for name, freq in same.items():
+                    if freq > maxi_same:
+                        maxi_same = freq
+                        rel_same = name
+
+                return Response(dumps([rel_same]), mimetype="application/json")
+
+            else: # if they do not have common relation, pick one from any of them that has the highest frequency
+                #for record1 in ser1:
+                #    diff[record1["r.name"]] = record1["frequency"]
+                #for record2 in ser2:
+                #    diff[record2["r.name"]] = record2["frequency"]
+                #maxi_diff = 0
+                #for name, freq in diff.items():
+                #    if freq > maxi_diff:
+                #        maxi_diff = freq
+                #        rel_diff = name
+
+                maxi_diff = -1
+                rel_diff = []
+                for record in ser1:
+                    fr = record["frequency"]
+                    if fr > maxi_diff:
+                        maxi_diff = fr
+                        rel_diff = record["r.name"]
+
+                for record in ser2:
+                    fr = record["frequency"]
+                    if fr > maxi_diff:
+                        maxi_diff = fr
+                        rel_diff = record["r.name"]
+
+                if not rel_diff:
+                    return Response(dumps([]), mimetype="application/json")
+
+                return Response(dumps([rel_diff]), mimetype="application/json")
+
+
         elif mode == "new jaccard":
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
                              "WHERE w.value =~ {v} "
