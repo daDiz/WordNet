@@ -140,7 +140,7 @@ def get_search():
                 return Response(dumps([rel_diff]), mimetype="application/json")
 
 
-        elif mode == "new jaccard":
+        elif mode == "jaccard index":
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
                              "WHERE w.value =~ {v} "
                              "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w1})
@@ -189,7 +189,7 @@ def get_search():
 
             return Response(dumps([max_name]), mimetype="application/json")
 
-        elif mode == "new friends":
+        elif mode == "friends measure":
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(left1:Index)-[r1:POINT_TO]-(left2:Index)-[r2:POINT_TO]-(right2:Index)-[r3:POINT_TO]-(right1:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                              "WHERE w1.value=~{v1} AND w2.value=~{v2} "
                              "WITH [left2.value, right2.value] AS pair, r2.name AS name "
@@ -200,12 +200,13 @@ def get_search():
                 ser.append({"name": record["name"], "frequency": record["frequency"]})
 
             if not ser:
-                return Response(dumps([]), mimetype="application/json")
+                select = np.random.choice(rel_list, 1)[0]
+                return Response(dumps([select]), mimetype="application/json")
 
 
             return Response(dumps([ser[0]["name"]]), mimetype="application/json")
 
-
+"""
         elif mode == "jaccard index":
             #Response(dumps(["Quering now ..."]), mimetype="application/json")
             score = [];
@@ -272,7 +273,7 @@ def get_search():
                 score.append( np.array( [ 1 if (( pair in result )|( pair[::-1] in result )) else 0 for pair in all_pair] ).sum() )
             rel_out = rel_list[np.argmax( np.array(score) )]
             return Response(dumps([rel_out]), mimetype="application/json")
-
+"""
 
 
 
