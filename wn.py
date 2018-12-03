@@ -4,6 +4,7 @@ from json import dumps
 from flask import Flask, g, Response, request
 import numpy as np
 from neo4j.v1 import GraphDatabase, basic_auth
+import time
 
 app = Flask(__name__, static_url_path='/static/')
 
@@ -47,16 +48,20 @@ def get_search():
     else:
         db = get_db()
         if mode == "default":
+            start = time.time()
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                             "WHERE (w1.value =~ {v1} AND w2.value =~ {v2}) OR (w1.value =~ {v2} AND w2.value =~ {v1}) "
                             "RETURN DISTINCT r.name", {"v1": "(?i)" + w1, "v2": "(?i)" + w2})
             ser = [record['r.name'] for record in results]
             if not ser:
-                return Response(dumps([]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps(['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
-            return Response(dumps(ser), mimetype="application/json")
+            end = time.time()
+            return Response(dumps([ser, 'time: %.2f sec' % (end-start)]), mimetype="application/json")
 
         elif mode == "max single":
+            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
                               "WHERE w.value =~ {v} "
                               "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC LIMIT 1", {"v": "(?i)" + w1})
@@ -73,10 +78,13 @@ def get_search():
                              "frequency": record["frequency"]})
 
             if ser1[0]["frequency"] >= ser2[0]["frequency"]:
-                return Response(dumps([record['r.name'] for record in ser1]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps([record['r.name'] for record in ser1]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
             else:
-                return Response(dumps([record['r.name'] for record in ser2]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps([record['r.name'] for record in ser2]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
         elif mode == "preferential attachment":
+            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
                               "WHERE w.value =~ {v} "
                               "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC ", {"v": "(?i)" + w1})
@@ -106,8 +114,8 @@ def get_search():
                     if freq > maxi_same:
                         maxi_same = freq
                         rel_same = name
-
-                return Response(dumps([rel_same]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps([rel_same]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
             else: # if they do not have common relation, pick one from any of them that has the highest frequency
                 #for record1 in ser1:
@@ -136,11 +144,12 @@ def get_search():
 
                 if not rel_diff:
                     return Response(dumps([]), mimetype="application/json")
-
-                return Response(dumps([rel_diff]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps([rel_diff]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
 
         elif mode == "jaccard index":
+            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
                              "WHERE w.value =~ {v} "
                              "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w1})
@@ -186,10 +195,11 @@ def get_search():
                 if score > max_score:
                     max_name = k
                     max_score = score
-
-            return Response(dumps([max_name]), mimetype="application/json")
+            end = time.time()
+            return Response(dumps([max_name]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
         elif mode == "friends measure":
+            start = time.time()
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(left1:Index)-[r1:POINT_TO]-(left2:Index)-[r2:POINT_TO]-(right2:Index)-[r3:POINT_TO]-(right1:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                              "WHERE w1.value=~{v1} AND w2.value=~{v2} "
                              "WITH [left2.value, right2.value] AS pair, r2.name AS name "
@@ -201,10 +211,11 @@ def get_search():
 
             if not ser:
                 select = np.random.choice(rel_list, 1)[0]
-                return Response(dumps([select]), mimetype="application/json")
+                end = time.time()
+                return Response(dumps([select]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
-
-            return Response(dumps([ser[0]["name"]]), mimetype="application/json")
+            end = time.time()
+            return Response(dumps([ser[0]["name"]]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
 
 """
         elif mode == "jaccard index":
