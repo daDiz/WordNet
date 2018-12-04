@@ -48,20 +48,16 @@ def get_search():
     else:
         db = get_db()
         if mode == "default":
-            start = time.time()
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                             "WHERE (w1.value =~ {v1} AND w2.value =~ {v2}) OR (w1.value =~ {v2} AND w2.value =~ {v1}) "
                             "RETURN DISTINCT r.name", {"v1": "(?i)" + w1, "v2": "(?i)" + w2})
             ser = [record['r.name'] for record in results]
             if not ser:
-                #end = time.time()
                 return Response(dumps([]), mimetype="application/json")
 
-            end = time.time()
-            return Response(dumps([ser, 'time: %.2f sec' % (end-start)]), mimetype="application/json")
+            return Response(dumps(ser), mimetype="application/json")
 
         elif mode == "max single":
-            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
                               "WHERE w.value =~ {v} "
                               "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC LIMIT 1", {"v": "(?i)" + w1})
@@ -78,13 +74,11 @@ def get_search():
                              "frequency": record["frequency"]})
 
             if ser1[0]["frequency"] >= ser2[0]["frequency"]:
-                end = time.time()
-                return Response(dumps([record['r.name'] for record in ser1]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+                return Response(dumps([record['r.name'] for record in ser1]), mimetype="application/json")
             else:
-                end = time.time()
-                return Response(dumps([record['r.name'] for record in ser2]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+                return Response(dumps([record['r.name'] for record in ser2]), mimetype="application/json")
+
         elif mode == "preferential attachment":
-            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(:Index) "
                               "WHERE w.value =~ {v} "
                               "RETURN r.name, COUNT(r.name) AS frequency ORDER BY frequency DESC ", {"v": "(?i)" + w1})
@@ -114,8 +108,7 @@ def get_search():
                     if freq > maxi_same:
                         maxi_same = freq
                         rel_same = name
-                end = time.time()
-                return Response(dumps([rel_same]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+                return Response(dumps([rel_same]), mimetype="application/json")
 
             else: # if they do not have common relation, pick one from any of them that has the highest frequency
                 #for record1 in ser1:
@@ -144,12 +137,11 @@ def get_search():
 
                 if not rel_diff:
                     return Response(dumps([]), mimetype="application/json")
-                end = time.time()
-                return Response(dumps([rel_diff]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+
+                return Response(dumps([rel_diff]), mimetype="application/json")
 
 
         elif mode == "jaccard index":
-            start = time.time()
             result1 = db.run("MATCH (w:Word)-[:ASSOCIATE_WITH]->(:Index)-[r:POINT_TO]-(idx:Index) "
                              "WHERE w.value =~ {v} "
                              "RETURN r.name, COLLECT(idx.value) AS ind", {"v": "(?i)" + w1})
@@ -195,11 +187,9 @@ def get_search():
                 if score > max_score:
                     max_name = k
                     max_score = score
-            end = time.time()
-            return Response(dumps([max_name]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+            return Response(dumps([max_name]), mimetype="application/json")
 
         elif mode == "friends measure":
-            start = time.time()
             results = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(left1:Index)-[r1:POINT_TO]-(left2:Index)-[r2:POINT_TO]-(right2:Index)-[r3:POINT_TO]-(right1:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
                              "WHERE w1.value=~{v1} AND w2.value=~{v2} "
                              "WITH [left2.value, right2.value] AS pair, r2.name AS name "
@@ -211,80 +201,9 @@ def get_search():
 
             if not ser:
                 select = np.random.choice(rel_list, 1)[0]
-                end = time.time()
-                return Response(dumps([select]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
+                return Response(dumps([select]), mimetype="application/json")
 
-            end = time.time()
-            return Response(dumps([ser[0]["name"]]+['time: %.2f sec' % (end-start)]), mimetype="application/json")
-
-"""
-        elif mode == "jaccard index":
-            #Response(dumps(["Quering now ..."]), mimetype="application/json")
-            score = [];
-            for rel in rel_list:
-                result1 = [ item["words"] for item in \
-                            db.run(
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w1.value=~ {v1}  AND r.name=~ {r1}) "
-                                "RETURN w2.value AS words "
-                                "UNION "
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w2.value=~ {v1} AND r.name=~ {r1}) "
-                                "RETURN w1.value AS words", {"v1": "(?i)" + w1, "r1": "(?i)" + rel }
-                            ) ];
-                result2 = [ item["words"] for item in \
-                            db.run(
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w1.value=~ {v2}  AND r.name=~ {r1}) "
-                                "RETURN w2.value AS words "
-                                "UNION "
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w2.value=~ {v2} AND r.name=~ {r1}) "
-                                "RETURN w1.value AS words", {"v2": "(?i)" + w2, "r1": "(?i)" + rel }
-                            ) ];
-                NumIntersect = float(len( set(result1).intersection(set(result2)) ));
-                NumUnion = float(len(set(result1+result2)));
-                jaccard =  NumIntersect/NumUnion if NumUnion>0 else 0;
-                score.append(jaccard)
-
-            rel_out = rel_list[np.argmax( np.array(score) )]
-            return Response(dumps([rel_out]), mimetype="application/json")
-
-        elif mode == "friends measure":
-            #Response(dumps(["Quering now ..."]), mimetype="application/json")
-            score = [];
-            for rel in rel_list:
-                result1 = [ item["words"] for item in \
-                            db.run(
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w1.value=~ {v1}  AND r.name=~ {r1}) "
-                                "RETURN w2.value AS words "
-                                "UNION "
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w2.value=~ {v1} AND r.name=~ {r1}) "
-                                "RETURN w1.value AS words", {"v1": "(?i)" + w1, "r1": "(?i)" + rel }
-                            ) ];
-                result2 = [ item["words"] for item in \
-                            db.run(
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w1.value=~ {v2}  AND r.name=~ {r1}) "
-                                "RETURN w2.value AS words "
-                                "UNION "
-                                "MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                "WHERE (w2.value=~ {v2} AND r.name=~ {r1}) "
-                                "RETURN w1.value AS words", {"v2": "(?i)" + w2, "r1": "(?i)" + rel }
-                            ) ];
-
-                all_pair = [(x,y) for x in result1 for y in result2];
-                result = db.run("MATCH (w1:Word)-[:ASSOCIATE_WITH]->(ein:Index)-[r:POINT_TO]->(eout:Index)<-[:ASSOCIATE_WITH]-(w2:Word) "
-                                 "WHERE (r.name=~ {r1}) "
-                                 "RETURN w1.value, w2.value", {"r1": "(?i)" + rel } )
-                result = [ item for item in result ];
-                result = [ (item["w1.value"], item["w2.value"]) for item in result ];
-                score.append( np.array( [ 1 if (( pair in result )|( pair[::-1] in result )) else 0 for pair in all_pair] ).sum() )
-            rel_out = rel_list[np.argmax( np.array(score) )]
-            return Response(dumps([rel_out]), mimetype="application/json")
-"""
+            return Response(dumps([ser[0]["name"]]), mimetype="application/json")
 
 
 
